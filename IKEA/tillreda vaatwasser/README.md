@@ -18,9 +18,9 @@ After tweaking a bit the end result is verified.
 
 # STL files
 
-![left](tillreda_bracket_A.stl)
+![left bracket](tillreda%20vaatwasser/tillreda_bracket_A.stl)
 
-![right](tillreda_bracket_B_gespiegeld.stl)
+![right bracket](tillreda%20vaatwasser/tillreda_bracket_B_gespiegeld.stl)
 
 
 # FreeCad
