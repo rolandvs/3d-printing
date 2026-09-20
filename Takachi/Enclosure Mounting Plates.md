@@ -4,7 +4,7 @@ Sometimes you want to mount a development board inside an enclosure. There are t
 
 - Create a custom enclosure that fits the board
 - Use a standard enclosure and mill the right holes to mount the board
-- Create a base plate that fits the board(s) and has the right size to fit an enclosure, inclusing the mounting positions
+- Create a base plate that fits the board(s) and has the right size to fit an enclosure, including the mounting positions
 
 The last solution is in this repository as an example to work on. It uses **OpenSCAD**. 
 
