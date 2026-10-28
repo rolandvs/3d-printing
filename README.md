@@ -3,6 +3,15 @@ Collection of 3D-models, fixes, ideas, problem solvers
 
 > Disclaimer: these designs are for my personal use. They are "as-is". No guarantee. Improvements are appreciated.
 
+# SECRID Card Protector
+For years I'm enjoying the SECRID card protector/wallet. A bunch of creditcard and loyalty cards packed and protected from bending and spoofing.
+
+When on holidays you carry all kind of travel papers. These could be made digital by scanning them and add some more info that is important onto a SDCARD. But where to put your SDCARD? Well, put it into the SECRID Wallet!
+
+![secrid](SECRID/img/example.png)
+
+Goto [SECRID Pocketware](SECRID)
+
 # Takachi Enclosures
 Sometimes you want to mount a development board inside an enclosure. There are two (three) solutions:
 
