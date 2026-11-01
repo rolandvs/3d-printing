@@ -1,0 +1,170 @@
+# -*- coding: utf-8 -*-
+# FreeCAD-macro: vulplaat voor opdekslot (parametrisch)
+#
+# Gebruik: Macro > Macro's... > Uitvoeren.
+# Er komt een nieuw document met spreadsheet "Params". Waarden aanpassen
+# en Ctrl+R (Recompute): het model past zich aan.
+#
+# ORIENTATIE: de bovenkant (Z = dikte) gaat TEGEN HET
+# SLOT. Bovenaanzicht = spiegelbeeld van een foto van de slot-achterkant.
+# X = breedte 95, Y = hoogte 93, Y = 0 is de voorplaatzijde (deurrand).
+#
+# Gemeten: buitenmaten 93 x 95, boorgaten 72 x 72; overige maten GESCHAT uit foto (+/- 1,5 mm).
+# r_hoek en bol moeten > 0 blijven.
+
+import FreeCAD as App
+
+PARAMS = [
+    ("breedte",       95.0, "gemeten"),
+    ("hoogte",        93.0, "gemeten, richting voorplaat"),
+    ("dikte",          2.0, "afstand slot tot deur"),
+    ("r_hoek",         5.0, "hoekradius (geschat, > 0)"),
+    ("bol",            1.5, "bolling zijkanten per kant (geschat, > 0); breedte = over midden"),
+    ("schijf_b",      42.0, "middengat (ellips), breedte X"),
+    ("schijf_h",      37.0, "hoogte (Y), kleiner dan schijf_b houden"),
+    ("schijf_x",      44.0, ""),
+    ("schijf_y",      45.2, ""),
+    ("kast_x1",       15.5, "uitsparing schootkastje, 1 mm wand naast boorgat"),
+    ("kast_x2",       36.0, ""),
+    ("kast_h",        21.0, "vanaf rand Y = 0"),
+    ("schroef_d",      7.0, "gat voor schroefkopje"),
+    ("schroef_x",     69.7, ""),
+    ("schroef_y",     44.4, ""),
+    ("boor_d",         6.0, "bevestigingsgaten"),
+    ("boor_afst",     72.0, "gemeten: vierkant 72 x 72"),
+    ("boor_cx",       47.5, "midden vierkant X"),
+    ("boor_cy",       49.75, "midden vierkant Y (geschat)"),
+]
+
+doc = App.newDocument("Vulplaat_opdekslot")
+
+sheet = doc.addObject("Spreadsheet::Sheet", "Params")
+sheet.set("A1", "Parameter")
+sheet.set("B1", "Waarde (mm)")
+sheet.set("C1", "Omschrijving")
+for i, (alias, val, desc) in enumerate(PARAMS, start=2):
+    sheet.set("A%d" % i, alias)
+    sheet.set("B%d" % i, str(val))
+    sheet.setAlias("B%d" % i, alias)
+    if desc:
+        sheet.set("C%d" % i, desc)
+doc.recompute()
+
+P = "Params."
+
+
+def place(o, x, y, z="0"):
+    o.setExpression(".Placement.Base.x", x)
+    o.setExpression(".Placement.Base.y", y)
+    o.setExpression(".Placement.Base.z", z)
+
+
+def box(name, x, y, l, w, z="0", h=P + "dikte"):
+    b = doc.addObject("Part::Box", name)
+    b.setExpression("Length", l)
+    b.setExpression("Width", w)
+    b.setExpression("Height", h)
+    place(b, x, y, z)
+    return b
+
+
+def cyl(name, x, y, r, z="0", h=P + "dikte"):
+    c = doc.addObject("Part::Cylinder", name)
+    c.setExpression("Radius", r)
+    c.setExpression("Height", h)
+    place(c, x, y, z)
+    return c
+
+
+def gat(name, x, y, d):
+    return cyl(name, x, y, "%s / 2" % d, z="-1", h=P + "dikte + 2")
+
+
+# --- plaat: zijkanten (X = 0 en X = breedte) als boog, ronde hoeken ---
+r = P + "r_hoek"
+RB = "((%shoogte ^ 2 / 4 + %sbol ^ 2) / (2 * %sbol))" % (P, P, P)
+# x-positie van de boog op hoogte r (raakpunt hoekafronding)
+XR = "(%s - sqrt(%s ^ 2 - (%shoogte / 2 - %s) ^ 2))" % (RB, RB, P, r)
+HB = P + "dikte + 2"
+
+basis = box("Basis", "0", "0", P + "breedte", P + "hoogte")
+boogL = cyl("Boog_links", RB, P + "hoogte / 2", RB, z="-1", h=HB)
+boogR = cyl("Boog_rechts", "%sbreedte - %s" % (P, RB), P + "hoogte / 2", RB, z="-1", h=HB)
+ton = doc.addObject("Part::MultiCommon", "Plaat_bol")
+ton.Shapes = [basis, boogL, boogR]
+
+hoeken = []
+XC_L = "%s + %s" % (XR, r)
+XC_R = "%sbreedte - %s - %s" % (P, XR, r)
+YC_B = r
+YC_T = "%shoogte - %s" % (P, r)
+for naam, xc, yc, bx, by in [
+        ("HoekLO", XC_L, YC_B, "-1", "-1"),
+        ("HoekLB", XC_L, YC_T, "-1", YC_T),
+        ("HoekRO", XC_R, YC_B, XC_R, "-1"),
+        ("HoekRB", XC_R, YC_T, XC_R, YC_T)]:
+    # blok van de hoek tot het hart van de afronding, minus de afrondingscilinder
+    blok = box(naam + "_blok", bx, by,
+               "%s + 1" % XC_L if bx == "-1" else "%s + 1" % XR + " + " + r,
+               "%s + 1" % r, z="-1", h=HB)
+    rond = cyl(naam + "_rond", xc, yc, r, z="-2", h=P + "dikte + 4")
+    hk = doc.addObject("Part::Cut", naam)
+    hk.Base = blok
+    hk.Tool = rond
+    hoeken.append(hk)
+hoek_fuse = doc.addObject("Part::MultiFuse", "Hoeken")
+hoek_fuse.Shapes = hoeken
+
+plaat = doc.addObject("Part::Cut", "Plaat_omtrek")
+plaat.Base = ton
+plaat.Tool = hoek_fuse
+plaat.Refine = True
+
+# --- uitsparingen -----------------------------------------------------
+tools = [
+    gat("Schroefkop", P + "schroef_x", P + "schroef_y", P + "schroef_d"),
+    gat("Boor_1", "%sboor_cx - %sboor_afst / 2" % (P, P), "%sboor_cy - %sboor_afst / 2" % (P, P), P + "boor_d"),
+    gat("Boor_2", "%sboor_cx + %sboor_afst / 2" % (P, P), "%sboor_cy - %sboor_afst / 2" % (P, P), P + "boor_d"),
+    gat("Boor_3", "%sboor_cx - %sboor_afst / 2" % (P, P), "%sboor_cy + %sboor_afst / 2" % (P, P), P + "boor_d"),
+    gat("Boor_4", "%sboor_cx + %sboor_afst / 2" % (P, P), "%sboor_cy + %sboor_afst / 2" % (P, P), P + "boor_d"),
+    box("Schootkast", P + "kast_x1", "-1",
+        "%skast_x2 - %skast_x1" % (P, P), P + "kast_h + 1",
+        z="-1", h=P + "dikte + 2"),
+]
+
+# middengat (ellips), doorgaand
+ell = doc.addObject("Part::Ellipse", "Schijf_omtrek")
+ell.setExpression("MajorRadius", P + "schijf_b / 2")
+ell.setExpression("MinorRadius", P + "schijf_h / 2")
+place(ell, P + "schijf_x", P + "schijf_y", "-1")
+schijf = doc.addObject("Part::Extrusion", "Middengat")
+schijf.Base = ell
+schijf.DirMode = "Custom"
+schijf.Dir = App.Vector(0, 0, 1)
+schijf.Solid = True
+schijf.setExpression("LengthFwd", P + "dikte + 2")
+tools.append(schijf)
+
+gereedschap = doc.addObject("Part::MultiFuse", "Uitsparingen")
+gereedschap.Shapes = tools
+
+result = doc.addObject("Part::Cut", "Vulplaat")
+result.Base = plaat
+result.Tool = gereedschap
+result.Refine = True
+
+doc.recompute()
+
+for o in doc.Objects:
+    if o is not result and hasattr(o, "ViewObject") and o.ViewObject:
+        if o.TypeId != "Spreadsheet::Sheet":
+            o.ViewObject.Visibility = False
+
+if App.GuiUp:
+    import FreeCADGui as Gui
+    Gui.activeDocument().activeView().viewIsometric()
+    Gui.SendMsgToActiveView("ViewFit")
+
+App.Console.PrintMessage(
+    "Vulplaat gemaakt. Waarden aanpassen in 'Params', dan Ctrl+R.\n"
+    "Export: selecteer 'Vulplaat' > Bestand > Exporteren > .stl / .3mf\n")
